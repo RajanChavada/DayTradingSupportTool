@@ -2,6 +2,8 @@ const express = require('express');
 const cheerio = require('cheerio');
 const cors = require('cors');
 const axios = require('axios');
+const puppeteer = require('puppeteer');
+
 
 const app = express();
 
@@ -16,39 +18,59 @@ const corsOptions = {
 
 
 
-const getForexFactoryData = async () => { 
+const getForexFactoryData = async () => {
+    const browser = await puppeteer.launch({ headless: true });
+    const page = await browser.newPage();
+
     try {
-    const url = "https://www.forexfactory.com/"; 
-    const response = await axios.get(url);
-    const $ = cheerio.load(response.data);   
+        console.log('Navigating to site...');
+        await page.goto('https://www.forexfactory.com/', {
+            waitUntil: 'domcontentloaded',
+            timeout: 0,
+        });
 
-    const news = []; 
-    $('.calendar__table tr').each((index, element) => {  
-        const impact = $(element).find('calendar__impact').attr('class'); 
-        const isHighImpact = impact && (impact.includes('High Impact Expected') || impact.includes('Medium Impact Expected'));
+        console.log('Waiting for table...');
+        await page.waitForSelector('.calendar__table', { timeout: 60000 });
 
-        if (isHighImpact) {
-            const time = $(element).find('.time').text().trim();
-            const currency = $(element).find('.currency').text().trim(); 
-            const event = $(element).find('.event').text().trim();
+        // Take a screenshot after the table is detected
+        await page.screenshot({ path: 'table-loaded.png', fullPage: true });
 
-            newsItems.push({ time, currency, event, impact });
-        }
-    }); 
+        const newsItems = await page.evaluate(() => {
+            const rows = document.querySelectorAll('tr.calendar__row[data-event-id]');
+            const data = [];
+        
+            rows.forEach(row => {
+                const impact = row.querySelector('.calendar__impact span')?.getAttribute('title');
+                const time = row.querySelector('.calendar__time span')?.textContent.trim();
+                const currency = row.querySelector('.calendar__currency span')?.textContent.trim();
+                const event = row.querySelector('.calendar__event-title')?.textContent.trim();
+        
+                if (impact && (impact.includes('High') || impact.includes('Medium')) && currency.includes('USD')) {
+                    data.push({ time, currency, event, impact });
+                }
+            });
+        
+            return data;
+        });
+        
+        console.log('Scraped news:', newsItems);
 
-    return newsItems
-} catch (error) {
-    console.log(error);
-    return [];
-}
+        await browser.close();
+        return newsItems;
 
+    } catch (error) {
+        console.error('Scraper error:', error);
+        await page.screenshot({ path: 'error.png', fullPage: true }); // capture what went wrong
+        await browser.close();
+        return [];
+    }
 };
+
 app.use(cors(corsOptions));
 
-app.get('/', (req, res) => {
-    const data = getForexFactoryData();
+app.get('/', async (req, res) => {
+    const data = await getForexFactoryData();
     res.json(data);
-    res.send(data);
 });
 
 app.listen(3000, () => {
