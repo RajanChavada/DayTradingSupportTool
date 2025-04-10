@@ -7,7 +7,11 @@ const puppeteer = require('puppeteer');
 
 const app = express();
 
+require('dotenv').config();
+const { Parser } = require('json2csv');
+const fs = require('fs');
 
+const API_KEY = process.env.ALPHA_VANTAGE;
 
 
 // Apply CORS middleware
@@ -15,6 +19,8 @@ const corsOptions = {
     origin: ['http://localhost:5173'], // Allow frontend to access backend
     optionsSuccessStatus: 200,
 };
+
+
 
 
 
@@ -88,6 +94,39 @@ app.get('/', async (req, res) => {
     const data = await getForexFactoryData();
     res.json(data);
 });
+
+app.get("/api/market-data", async(req, res) => { 
+    const func = "TIME_SERIES_INTRADAY"; 
+    const symbol = "QQQ"; 
+    const interval = "60min"; 
+    const url = `https://www.alphavantage.co/query?function=${func}&symbol=${symbol}&interval=${interval}&apikey=${API_KEY}`;
+
+    try { 
+        const response = await axios.get(url); 
+        const rawData = response.data['Time Series (60min)']; 
+
+        if (!rawData) return res.status(500).json({ error: 'Invalid or missing data' });
+
+        const formattedData = Object.entries(rawData).map(([timestamp, values]) => ({
+            timestamp,
+            open: values['1. open'],
+            high: values['2. high'],
+            low: values['3. low'],
+            close: values['4. close'],
+        }));
+
+        const json2csvParser = new Parser(); 
+        const csv = json2csvParser.parse(formattedData);
+
+
+        // save to file 
+        fs.writeFileSync('market-data.csv', csv);
+        res.send("CSV Saved"); 
+    }
+    catch(error) {
+        res.json(error);
+    }
+})
 
 app.listen(3000, () => {
     console.log('Example app listening on port 3000!');
