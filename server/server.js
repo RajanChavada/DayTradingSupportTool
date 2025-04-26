@@ -95,38 +95,46 @@ app.get('/', async (req, res) => {
     res.json(data);
 });
 
-app.get("/api/market-data", async(req, res) => { 
-    const func = "TIME_SERIES_INTRADAY"; 
-    const symbol = "QQQ"; 
-    const interval = "60min"; 
-    const url = `https://www.alphavantage.co/query?function=${func}&symbol=${symbol}&interval=${interval}&apikey=${API_KEY}`;
+app.get("/api/market-data", async (req, res) => {
+    const func = "TIME_SERIES_INTRADAY";
+    const symbol = "SPY";  // Or any other symbol
+    const interval = "15min";  // Can be changed to '1min', '15min', etc.
+    const url = `https://www.alphavantage.co/query?function=${func}&symbol=${symbol}&interval=${interval}&extended_hours=true&outputsize=full&datatype=csv&apikey=${API_KEY}`;
 
-    try { 
-        const response = await axios.get(url); 
-        const rawData = response.data['Time Series (60min)']; 
+    try {
+        console.log("Fetching intraday data...");
+        const response = await axios.get(url, { responseType: 'text' });  // CSV as text
+        const lines = response.data.trim().split("\n");
 
-        if (!rawData) return res.status(500).json({ error: 'Invalid or missing data' });
+        if (lines.length < 2 || lines[0].includes("Note")) {
+            console.error("Alpha Vantage note or empty response.");
+            return res.status(500).json({ error: "Alpha Vantage returned a note or no data." });
+        }
 
-        const formattedData = Object.entries(rawData).map(([timestamp, values]) => ({
-            timestamp,
-            open: values['1. open'],
-            high: values['2. high'],
-            low: values['3. low'],
-            close: values['4. close'],
-        }));
+        const rows = lines.slice(1).map(line => {
+            const values = line.split(",");
+            return {
+                timestamp: values[0],
+                open: values[1],
+                high: values[2],
+                low: values[3],
+                close: values[4],
+                volume: values[5],
+            };
+        });
 
-        const json2csvParser = new Parser(); 
-        const csv = json2csvParser.parse(formattedData);
+        const json2csvParser = new Parser({ fields: ["timestamp", "open", "high", "low", "close", "volume"] });
+        const csv = json2csvParser.parse(rows);
+        fs.writeFileSync('new-data.csv', csv);
 
-
-        // save to file 
-        fs.writeFileSync('market-data.csv', csv);
-        res.send("CSV Saved"); 
+        res.send("✅ Market data fetched and CSV saved.");
+    } catch (error) {
+        console.error("Fetch error:", error.message);
+        res.status(500).json({ error: error.message });
     }
-    catch(error) {
-        res.json(error);
-    }
-})
+});
+
+
 
 app.listen(3000, () => {
     console.log('Example app listening on port 3000!');

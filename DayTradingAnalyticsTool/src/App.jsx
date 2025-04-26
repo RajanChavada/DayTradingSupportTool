@@ -8,6 +8,7 @@ function App() {
   const [news, setNews] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [filter, setFilter] = useState(null); 
+  cosnt [bias, setBias] = useState([]); 
 
   useEffect(() => {
     const fetchNews = async () => {
@@ -19,6 +20,17 @@ function App() {
       }
     };
     fetchNews();
+
+    const fetchBias = async () => { 
+      try { 
+        const res = await axios.got("http://localhost:3000/api/bias");  
+        setBias(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+
+    }; 
+    fetchBias(); 
   }, []);
 
   const impactColor = (impact) => {
