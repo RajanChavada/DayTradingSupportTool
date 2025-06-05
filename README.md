@@ -62,5 +62,9 @@ And boom — confluence + caution = smarter trades.
 
 ## 🧠 LLM Prompt Engineering Preview
 
+
+## 🧑‍💻 Author
+## 👋 Hey, I’m Rajan Chavada, a full-stack AI engineer & Capital Markets intern building tools for smarter trading.
+
 ```text
 “You are a market analyst. Based on this news: [news text], and this session structure: [PA data], what is the likely short-term market bias? Provide a directional answer with confidence (0-100) and explain briefly.”
